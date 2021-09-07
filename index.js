@@ -9,7 +9,7 @@ const bodyParser = require('body-parser')
 
 dotenv.config()
 
-const APP_PORT = process.env.APP_PORT
+const APP_PORT = process.env.APP_PORT || 80
 
 const users = []
 
@@ -44,6 +44,12 @@ const update_all_users = (req, res) => {
   res.send(users)
   io.sockets.emit('all_users_updated', users)
 }
+
+app.get('/', (req, res) => {
+  res.send({
+    application_name: 'Real-time polling API'
+  })
+})
 
 app.route('/users')
   .get(get_users)
