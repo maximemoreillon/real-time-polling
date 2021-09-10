@@ -62,15 +62,14 @@ io.use( auth(auth_options) )
 
 io.on('connection', (socket) => {
 
-  // Not good to identify users with thei DB id because of multiple tab behavior
+  // Not good to identify users with their DB id because of multiple tab behavior
   // Maybe OK because can push into array multiple times
 
   const { user } = socket
 
-  const found_index = users.findIndex(u => u.identity === user.identity)
-
   console.log(`User ${user.properties.display_name} connected`)
 
+  const found_index = users.findIndex(u => u.identity === user.identity)
   if(found_index < 0) {
     console.log(`User ${user.properties.display_name} is new, adding to list`)
     users.push({...user, socket_id: socket.id})
@@ -80,12 +79,12 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
 
     console.log(`User ${user.properties.display_name} disconnected`)
-
+    const found_index = users.findIndex(u => u.identity === user.identity)
     if(found_index > -1) {
       users.splice(found_index,1)
       io.sockets.emit('user_disconnected', user)
-
     }
+
   })
 
 })
