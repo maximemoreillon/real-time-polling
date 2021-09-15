@@ -8,6 +8,7 @@ const cors = require('cors')
 const bodyParser = require('body-parser')
 const user_router = require('./routes/users.js')
 const room_router = require('./routes/rooms.js')
+const pjson = require('./package.json')
 
 dotenv.config()
 
@@ -37,7 +38,8 @@ exports.get_users = get_users
 
 app.get('/', (req, res) => {
   res.send({
-    application_name: 'Real-time polling API'
+    application_name: 'Real-time polling API',
+    version: pjson.version,
   })
 })
 
@@ -52,6 +54,7 @@ io.on('connection', (socket) => {
   const {user, id} = socket
   user.socket = {id}
   io.sockets.emit('user_connected', user)
+  console.log(`[WS] User ${user.properties.display_name} sconnected`)
 
   socket.on('user_state', (data) => {
     const {user} = socket
@@ -69,6 +72,7 @@ io.on('connection', (socket) => {
   })
 
   socket.on('disconnect', () => {
+    console.log(`[WS] User ${user.properties.display_name} disconnected`)
     io.sockets.emit('user_disconnected', user)
   })
 
