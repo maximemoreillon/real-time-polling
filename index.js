@@ -2,11 +2,12 @@ const express = require('express')
 const http = require('http')
 const dotenv = require('dotenv')
 const { Server } = require("socket.io")
-const auth = require('@moreillon/socketio_authentication_middleware')
+const socketio_auth = require('@moreillon/socketio_authentication_middleware')
+const express_auth = require('@moreillon/express_identification_middleware')
 const cors = require('cors')
 const bodyParser = require('body-parser')
-const users = require('./users.js')
 const user_router = require('./routes/users.js')
+const room_router = require('./routes/rooms.js')
 
 dotenv.config()
 
@@ -26,7 +27,13 @@ app.use(bodyParser.json())
 const server = http.createServer(app)
 const io = new Server(server, socketio_options)
 
+const get_users = () => {
+  const socket_array = Array.from(io.sockets.sockets)
+  return socket_array.map(e => e[1].user)
+}
 
+exports.io = io
+exports.get_users = get_users
 
 app.get('/', (req, res) => {
   res.send({
@@ -34,36 +41,35 @@ app.get('/', (req, res) => {
   })
 })
 
-app.use('/users', user_router)
+app.use('/users', express_auth(auth_options), user_router)
+app.use('/rooms', express_auth(auth_options), room_router)
 
-
-io.use( auth(auth_options) )
+io.use( socketio_auth(auth_options) )
 
 io.on('connection', (socket) => {
 
-  // Not good to identify users with their DB id because of multiple tab behavior
-  // Maybe OK because can push into array multiple times
+  // user becomes available thanks to the auth middleware
+  const {user, id} = socket
+  user.socket = {id}
+  io.sockets.emit('user_connected', user)
 
-  const { user } = socket
+  socket.on('user_state', (data) => {
+    const {user} = socket
+    const {state} = data
+    user.state = state
+    io.sockets.emit('user_updated', user)
+  })
 
-  console.log(`User ${user.properties.display_name} connected`)
-
-  const found_index = users.findIndex(u => u.identity === user.identity)
-  if(found_index < 0) {
-    console.log(`User ${user.properties.display_name} is new, adding to list`)
-    users.push({...user, socket_id: socket.id})
-    io.sockets.emit('user_connected', user)
-  }
+  socket.on('reset', (data) => {
+    const {user} = socket
+    const {state} = data
+    get_users.forEach((user) => { user.state = state })
+    res.send(users)
+    io.sockets.emit('all_users_updated', users)
+  })
 
   socket.on('disconnect', () => {
-
-    console.log(`User ${user.properties.display_name} disconnected`)
-    const found_index = users.findIndex(u => u.identity === user.identity)
-    if(found_index > -1) {
-      users.splice(found_index,1)
-      io.sockets.emit('user_disconnected', user)
-    }
-
+    io.sockets.emit('user_disconnected', user)
   })
 
 })
