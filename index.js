@@ -40,6 +40,7 @@ app.get('/', (req, res) => {
   res.send({
     application_name: 'Real-time polling API',
     version: pjson.version,
+    authentication: auth_options.url
   })
 })
 
