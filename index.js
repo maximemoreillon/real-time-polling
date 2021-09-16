@@ -28,13 +28,28 @@ app.use(bodyParser.json())
 const server = http.createServer(app)
 const io = new Server(server, socketio_options)
 
-const get_users = () => {
+const get_all_users = () => {
   const socket_array = Array.from(io.sockets.sockets)
   return socket_array.map(e => e[1].user)
 }
 
+const get_rooms = () => Array.from(io.sockets.adapter.rooms)
+
+const get_room = (room) => get_rooms()
+  .find( r => r[0] === room_name_format(room))
+
+const get_room_users = (room) => {
+  const found_room = get_room(room)
+  if(!found_room) return []
+  const room_user_ids = Array.from(found_room[1])
+  return get_all_users().filter(u => room_user_ids.includes(u.socket.id))
+}
+
+const room_name_format = (name) => `poll_${name}`
+
 exports.io = io
-exports.get_users = get_users
+exports.get_all_users = get_all_users
+exports.get_room_users = get_room_users
 
 app.get('/', (req, res) => {
   res.send({
@@ -54,22 +69,40 @@ io.on('connection', (socket) => {
   // user becomes available thanks to the auth middleware
   const {user, id} = socket
   user.socket = {id}
-  io.sockets.emit('user_connected', user)
-  console.log(`[WS] User ${user.properties.display_name} sconnected`)
 
-  socket.on('user_state', (data) => {
+  io.sockets.emit('user_connected', user)
+  console.log(`[WS] User ${user.properties.display_name} connected`)
+
+  socket.on('state', ({state, room}) => {
     const {user} = socket
-    const {state} = data
     user.state = state
-    io.sockets.emit('user_updated', user)
+    if(room) io.to(room_name_format(room)).emit('user_updated', user)
+    else io.sockets.emit('user_updated', user)
+    console.log(`[WS] User ${user.properties.display_name} state of room ${room} updated to ${state}`)
   })
 
-  socket.on('reset', (data) => {
+  socket.on('join', ({room}) => {
     const {user} = socket
-    const {state} = data
-    get_users.forEach((user) => { user.state = state })
-    res.send(users)
-    io.sockets.emit('all_users_updated', users)
+    const found_room = get_room(room)
+    if(!found_room) {
+      user.created_room = room
+      console.log(`[WS] User ${user.properties.display_name} created room ${room}`)
+    }
+    socket.join(room_name_format(room))
+    io.to(room_name_format(room)).emit('user_joined_room', user)
+    console.log(`[WS] User ${user.properties.display_name} joined room ${room}`)
+  })
+
+  socket.on('leave', ({room}) => {
+    const {user} = socket
+    socket.leave(room_name_format(room))
+    io.to(room_name_format(room)).emit('user_left_room', user)
+    console.log(`[WS] User ${user.properties.display_name} left room ${room}`)
+  })
+
+  socket.on('all_states', ({state, room}) => {
+    get_room_users(room).forEach((user) => { user.state = state })
+    io.to(room_name_format(room)).emit('all_users_updated', get_room_users(room))
   })
 
   socket.on('disconnect', () => {
