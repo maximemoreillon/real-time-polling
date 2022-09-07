@@ -21,8 +21,6 @@ containerization:
 
 deployment:
   stage: deployment
-  tags:
-    - moreillon
   script:
     # create/update the deployment
     - envsubst < kubernetes_manifest.yml | kubectl apply -f -
