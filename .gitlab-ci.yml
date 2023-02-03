@@ -4,30 +4,26 @@ stages:
 
 variables:
   APPLICATION_NAME: real-time-polling
-  DOCKER_IMAGE: ${DOCKER_HUB_USERNAME}/${APPLICATION_NAME}
-  KUBERNETES_PORT: 30690
+  CONTAINER_IMAGE: ${DOCKER_HUB_USERNAME}/${APPLICATION_NAME}
+  CONTAINER_IMAGE_TAGGED: ${DOCKER_HUB_USERNAME}/${APPLICATION_NAME}:${CI_COMMIT_SHORT_SHA}
 
-containerization:
-  stage: containerization
-  script:
-    # Docker hub login
+image: moreillon/ci-dind
+services:
+  - name: docker:19.03.12-dind
+
+build:
+  only:
+    - master
+  stage: build
+  tags:
+    - dind
+  before_script:
     - echo "${DOCKER_HUB_PASSWORD}" | docker login --username ${DOCKER_HUB_USERNAME} --password-stdin
-    # Build the docker image. Pass proxy variables if set
-    - docker build -t ${DOCKER_IMAGE} .
-    # Pushing image to registry
-    - docker push ${DOCKER_IMAGE}
-    # Cleanup
-    - docker image rm ${DOCKER_IMAGE}
-
-deployment:
-  stage: deployment
   script:
-    # create/update the deployment
-    - envsubst < kubernetes_manifest.yml | kubectl apply -f -
-    # Pull latest image of deployment
-    - kubectl rollout restart deployment/${APPLICATION_NAME}
-  environment:
-    name: production
-    kubernetes:
-      # NAMESPACE provided by GitLab
-      namespace: ${KUBERNETES_NAMESPACE}
+    # Building
+    - docker build -t ${CONTAINER_IMAGE} .
+    # Tagging
+    - docker tag ${CONTAINER_IMAGE} ${CONTAINER_IMAGE_TAGGED}
+    # Pushing
+    - docker push ${CONTAINER_IMAGE}
+    - docker push ${CONTAINER_IMAGE_TAGGED}
