@@ -1,6 +1,5 @@
 stages:
-  - containerization
-  - deployment
+  - build
 
 variables:
   APPLICATION_NAME: real-time-polling
